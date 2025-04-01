@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Monitor Linux - Debug</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .charts-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .chart-box {
+            flex: 1;
+            min-width: 300px;
+        }
+        input {
+            margin: 5px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            padding: 8px 12px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .debug-panel {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border: 1px solid #ddd;
+            margin-top: 20px;
+            overflow-y: auto;
+            max-height: 200px;
+        }
+        .debug-panel h3 {
+            margin-top: 0;
+        }
+        .debug-entry {
+            margin-bottom: 5px;
+            padding: 3px;
+            border-bottom: 1px solid #eee;
+        }
+        .error { color: red; }
+        .success { color: green; }
+        .warning { color: orange; }
+    </style>
+</head>
+<body>
+    <div class="section">
+        <h1>Monitoramento do Sistema Linux (Debug)</h1>
+        
+        <div>
+            <button id="pingServer">Testar Conexão</button>
+            <span id="pingResult"></span>
+        </div>
+        
+        <div class="charts-container">
+            <!-- Gráfico CPU -->
+            <div class="chart-box">
+                <h3>Uso da CPU (%)</h3>
+                <canvas id="cpuChart" width="400" height="200"></canvas>
+            </div>
+
+            <!-- Gráfico Memória -->
+            <div class="chart-box">
+                <h3>Uso da Memória (%)</h3>
+                <canvas id="memoryChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Processos em Execução</h2>
+        <button onclick="loadProcesses()">Atualizar Lista</button>
+        <div style="overflow-x: auto;">
+            <table id="processTable">
+                <thead>
+                    <tr>
+                        <th>Usuário</th>
+                        <th>PID</th>
+                        <th>CPU%</th>
+                        <th>MEM%</th>
+                        <th>Comando</th>
+                        <th>Ação</th>
+                    </tr>
+                </thead>
+                <tbody id="processList">
+                    <!-- Processos serão inseridos aqui -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Gerenciamento de Processos</h2>
+        <input type="text" id="pid" placeholder="Digite o PID">
+        <button onclick="killProcess()">Matar Processo</button>
+        <div id="killResult" style="margin-top: 10px;"></div>
+    </div>
+
+    <div class="section">
+        <h2>Gerenciamento de Permissões</h2>
+        
+        <!-- chmod -->
+        <div>
+            <h4>Alterar Permissões (chmod)</h4>
+            <input type="text" id="chmodPath" placeholder="Caminho do arquivo/diretório">
+            <input type="text" id="chmodMode" placeholder="Modo (ex: 755)">
+            <button onclick="changePermissions()">Aplicar</button>
+            <div id="chmodResult" style="margin-top: 10px;"></div>
+        </div>
+
+        <!-- chown -->
+        <div style="margin-top: 15px;">
+            <h4>Alterar Dono/Grupo (chown)</h4>
+            <input type="text" id="chownPath" placeholder="Caminho do arquivo/diretório">
+            <input type="text" id="chownUser" placeholder="Usuário">
+            <input type="text" id="chownGroup" placeholder="Grupo">
+            <button onclick="changeOwnership()">Aplicar</button>
+            <div id="chownResult" style="margin-top: 10px;"></div>
+        </div>
+    </div>
+    
+    <!-- Painel de Debug -->
+    <div class="section debug-panel">
+        <h3>Log de Debug</h3>
+        <div id="debugLog"></div>
+    </div>
+
+    <script>
+        // Função de debug
+        function debugLog(message, type = 'info') {
+            const logElement = document.getElementById('debugLog');
+            const entry = document.createElement('div');
+            entry.className = debug-entry ${type};
+            entry.textContent = ${new Date().toLocaleTimeString()}: ${message};
+            logElement.prepend(entry);
+            console.log([${type.toUpperCase()}] ${message});
+        }
+
+        // Testar conexão com o servidor
+        document.getElementById('pingServer').addEventListener('click', async () => {
+            try {
+                debugLog('Testando conexão com o servidor');
+                const startTime = Date.now();
+                const response = await fetch('/ping');
+                const elapsed = Date.now() - startTime;
+                
+                if (response.ok) {
+                    const text = await response.text();
+                    document.getElementById('pingResult').textContent = Conexão OK (${elapsed}ms);
+                    debugLog(Servidor respondeu "${text}" em ${elapsed}ms, 'success');
+                } else {
+                    document.getElementById('pingResult').textContent = Erro: ${response.status};
+                    debugLog(Erro ao conectar: ${response.status} ${response.statusText}, 'error');
+                }
+            } catch (error) {
+                document.getElementById('pingResult').textContent = 'Falha na conexão';
+                debugLog(Exceção ao conectar: ${error.message}, 'error');
+            }
+        });
+        
+        // Configuração dos Gráficos
+        let cpuChart, memoryChart;
+        
+        try {
+            debugLog('Inicializando gráficos');
+            const cpuCtx = document.getElementById('cpuChart').getContext('2d');
+            const memoryCtx = document.getElementById('memoryChart').getContext('2d');
+            
+            // Labels para o eixo X (últimas 20 amostras)
+            const labels = Array(20).fill('').map((_, i) => i.toString());
+            
+            cpuChart = new Chart(cpuCtx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'CPU %',
+                        data: Array(20).fill(null),
+                        borderColor: '#36a2eb',
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        borderWidth: 2,
+                        tension: 0.2,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: { 
+                            min: 0,
+                            max: 100,
+                            title: {
+                                display: true,
+                                text: 'Uso (%)'
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 0
+                    }
+                }
+            });
+
+            memoryChart = new Chart(memoryCtx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Memória %',
+                        data: Array(20).fill(null),
+                        borderColor: '#ff6384',
+                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                        borderWidth: 2,
+                        tension: 0.2,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: { 
+                            min: 0,
+                            max: 100,
+                            title: {
+                                display: true,
+                                text: 'Uso (%)'
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 0
+                    }
+                }
+            });
+            debugLog('Gráficos inicializados com sucesso', 'success');
+        } catch (error) {
+            debugLog(Erro ao inicializar gráficos: ${error.message}, 'error');
+        }
+
+        // Atualização de Dados dos Gráficos
+        async function updateCharts() {
+            try {
+                // Atualizar CPU
+                debugLog('Buscando dados de CPU');
+                const cpuResponse = await fetch('/cpu');
+                if (!cpuResponse.ok) {
+                    throw new Error(${cpuResponse.status} ${cpuResponse.statusText});
+                }
+                const cpuData = await cpuResponse.json();
+                debugLog(Dados de CPU recebidos: ${cpuData.usage}%, 'success');
+                
+                // Atualizar Memória
+                debugLog('Buscando dados de memória');
+                const memResponse = await fetch('/memory');
+                if (!memResponse.ok) {
+                    throw new Error(${memResponse.status} ${memResponse.statusText});
+                }
+                const memData = await memResponse.json();
+                debugLog(Dados de memória recebidos: ${memData.usedPercent}%, 'success');
+                
+                // Adicionar novo ponto e remover o mais antigo
+                cpuChart.data.datasets[0].data.push(cpuData.usage);
+                cpuChart.data.datasets[0].data.shift();
+                
+                memoryChart.data.datasets[0].data.push(parseFloat(memData.usedPercent));
+                memoryChart.data.datasets[0].data.shift();
+                
+                // Atualizar gráficos
+                cpuChart.update();
+                memoryChart.update();
+                
+            } catch (error) {
+                debugLog(Erro ao atualizar gráficos: ${error.message}, 'error');
+            }
+        }
+
+        // Carregar lista de processos
+        async function loadProcesses() {
+            try {
+                debugLog('Carregando lista de processos');
+                const response = await fetch('/processes');
+                if (!response.ok) {
+                    throw new Error(${response.status} ${response.statusText});
+                }
+                
+                const processes = await response.json();
+                debugLog(${processes.length} processos carregados, 'success');
+                
+                const tbody = document.getElementById('processList');
+                tbody.innerHTML = '';
+                
+                processes.forEach(proc => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${proc.user}</td>
+                        <td>${proc.pid}</td>
+                        <td>${proc.cpu}%</td>
+                        <td>${proc.mem}%</td>
+                        <td>${proc.command}</td>
+                        <td><button onclick="killProcessById(${proc.pid})">Encerrar</button></td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } catch (error) {
+                debugLog(Erro ao carregar processos: ${error.message}, 'error');
+                showResult('processList', 'Erro ao carregar processos', 'error');
+            }
+        }
+
+        // Matar processo diretamente da lista
+        async function killProcessById(pid) {
+            debugLog(Solicitando encerramento do processo ${pid}...);
+            if (confirm(Tem certeza que deseja encerrar o processo ${pid}?)) {
+                await killProcessViaAPI(pid);
+                setTimeout(loadProcesses, 1000); // Recarregar lista após 1s
+            } else {
+                debugLog('Operação cancelada pelo usuário', 'warning');
+            }
+        }
+
+        // Função corrigida para matar processo
+        async function killProcessViaAPI(pid) {
+            try {
+                debugLog(Enviando solicitação para matar processo ${pid}...);
+                const response = await fetch('/kill', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pid: pid })
+                });
+                
+                const message = await response.text();
+                const status = response.ok ? 'success' : 'error';
+                debugLog(Resultado do encerramento do processo ${pid}: ${message}, status);
+                
+                if (response.ok) {
+                    showResult('killResult', Processo ${pid} finalizado, 'success');
+                } else {
+                    showResult('killResult', message, 'error');
+                }
+                
+                return { success: response.ok, message };
+            } catch (error) {
+                debugLog(Exceção ao matar processo: ${error.message}, 'error');
+                showResult('killResult', error.message, 'error');
+                return { success: false, message: 'Erro ao enviar requisição' };
+            }
+        }
+
+        // Função para matar processo via form
+        async function killProcess() {
+            const pid = document.getElementById('pid').value.trim();
+            if (!pid) {
+                showResult('killResult', 'Por favor, informe um PID válido', 'error');
+                debugLog('Tentativa de matar processo sem PID válido', 'error');
+                return;
+            }
+            
+            await killProcessViaAPI(pid);
+        }
+
+        // Alterar permissões
+        async function changePermissions() {
+            const path = document.getElementById('chmodPath').value.trim();
+            const mode = document.getElementById('chmodMode').value.trim();
+            
+            if (!path || !mode) {
+                showResult('chmodResult', 'Preencha todos os campos', 'error');
+                debugLog('Tentativa de chmod sem campos preenchidos', 'error');
+                return;
+            }
+            
+            try {
+                debugLog(Enviando solicitação chmod ${mode} para ${path}...);
+                const response = await fetch('/chmod', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path, mode })
+                });
+                
+                const message = await response.text();
+                const status = response.ok ? 'success' : 'error';
+                showResult('chmodResult', response.ok ? 'Permissões alteradas' : message, status);
+                debugLog(Resultado do chmod: ${message}, status);
+            } catch (error) {
+                showResult('chmodResult', error.message, 'error');
+                debugLog(Exceção ao executar chmod: ${error.message}, 'error');
+            }
+        }
+
+        // Alterar dono/grupo
+        async function changeOwnership() {
+            const path = document.getElementById('chownPath').value.trim();
+            const user = document.getElementById('chownUser').value.trim();
+            const group = document.getElementById('chownGroup').value.trim();
+            
+            if (!path || !user || !group) {
+                showResult('chownResult', 'Preencha todos os campos', 'error');
+                debugLog('Tentativa de chown sem campos preenchidos', 'error');
+                return;
+            }
+            
+            try {
+                debugLog(Enviando solicitação chown ${user}:${group} para ${path}...);
+                const response = await fetch('/chown', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path, user, group })
+                });
+                
+                const message = await response.text();
+                const status = response.ok ? 'success' : 'error';
+                showResult('chownResult', response.ok ? 'Dono/grupo alterado' : message, status);
+                debugLog(Resultado do chown: ${message}, status);
+            } catch (error) {
+                showResult('chownResult', error.message, 'error');
+                debugLog(Exceção ao executar chown: ${error.message}, 'error');
+            }
+        }
+
+        // Função auxiliar para mostrar resultados
+        function showResult(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.style.color = type === 'error' ? 'red' : 'green';
+            element.style.fontWeight = 'bold';
+            
+            // Limpar a mensagem após 5 segundos
+            setTimeout(() => {
+                element.textContent = '';
+            }, 5000);
+        }
+
+        // Iniciar atualização dos gráficos
+        let updateInterval;
+        
+        function startUpdating() {
+            debugLog('Iniciando atualização dos gráficos');
+            // Limpar intervalo existente se houver
+            if (updateInterval) {
+                clearInterval(updateInterval);
+            }
+            // Definir novo intervalo
+            updateInterval = setInterval(updateCharts, 2000);
+            updateCharts(); // Primeira execução
+        }
+        
+        // Carregar processos e iniciar atualização quando a página estiver pronta
+        document.addEventListener('DOMContentLoaded', () => {
+            debugLog('Página carregada. Inicializando aplicação...');
+            loadProcesses();
+            startUpdating();
+        });
+    </script>
+</body>
+</html>
